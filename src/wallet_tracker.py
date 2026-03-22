@@ -23,29 +23,25 @@ class WalletTracker:
         conn.close()
     
     async def get_top_tokens(self):
-        """Pobierz top tokeny"""
         try:
             async with aiohttp.ClientSession() as session:
                 url = "https://api.dexscreener.com/latest/dex/tokens"
                 async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                     data = await resp.json()
                     tokens = data.get("pairs", [])[:20]
-                    
                     formatted = []
                     for token in tokens:
                         formatted.append({
                             "address": token.get("baseToken", {}).get("address"),
                             "symbol": token.get("baseToken", {}).get("symbol", "UNKNOWN")
                         })
-                    
-                    print(f"✅ Pobrano {len(formatted)} tokenów z Dex Screener")
+                    print(f"✅ Pobrano {len(formatted)} tokenów")
                     return formatted
         except Exception as e:
-            print(f"❌ Błąd pobierania tokenów: {e}")
+            print(f"❌ Błąd: {e}")
             return []
     
     async def get_token_traders(self, token_mint: str):
-        """Pobierz tradery danego tokenu"""
         try:
             async with aiohttp.ClientSession() as session:
                 payload = {
@@ -60,11 +56,9 @@ class WalletTracker:
                     wallets = [acc["address"] for acc in accounts[:50]]
                     return wallets
         except Exception as e:
-            print(f"❌ Błąd pobierania traderów: {e}")
             return []
     
     async def calculate_win_rate(self, wallet: str):
-        """Oblicz win rate i liczbę tradów"""
         try:
             async with aiohttp.ClientSession() as session:
                 payload = {
@@ -75,58 +69,36 @@ class WalletTracker:
                 }
                 async with session.post(self.rpc_url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                     data = await resp.json()
-                    
                     if "error" in data:
                         return None, None
-                    
                     signatures = data.get("result", [])
-                    
                     if not signatures:
                         return None, None
-                    
                     one_month_ago = datetime.now() - timedelta(days=30)
-                    recent_sigs = []
-                    
-                    for sig in signatures:
-                        if sig.get("blockTime"):
-                            tx_date = datetime.fromtimestamp(sig["blockTime"])
-                            if tx_date > one_month_ago:
-                                recent_sigs.append(sig)
-                    
+                    recent_sigs = [sig for sig in signatures if sig.get("blockTime") and datetime.fromtimestamp(sig["blockTime"]) > one_month_ago]
                     total_trades = len(recent_sigs)
-                    successful = sum(1 for sig in recent_sigs if sig.get("err") is None)
-                    
                     if total_trades < 100:
                         return None, None
-                    
+                    successful = sum(1 for sig in recent_sigs if sig.get("err") is None)
                     win_rate = (successful / total_trades * 100) if total_trades > 0 else 0
-                    
                     if win_rate < 40:
                         return None, None
-                    
                     return win_rate, total_trades
         except Exception as e:
-            print(f"⚠️  Błąd liczenia win rate dla {wallet[:8]}...: {e}")
             return None, None
     
     async def add_wallet(self, wallet: str, win_rate: float, total_trades: int):
-        """Dodaj wallet do bazy"""
         try:
             conn = sqlite3.connect("wallets.db")
             cursor = conn.cursor()
-            cursor.execute("""
-                INSERT OR REPLACE INTO tracked_wallets 
-                (wallet, win_rate, total_trades, added_date)
-                VALUES (?, ?, ?, ?)
-            """, (wallet, win_rate, total_trades, datetime.now().isoformat()))
+            cursor.execute("INSERT OR REPLACE INTO tracked_wallets (wallet, win_rate, total_trades, added_date) VALUES (?, ?, ?, ?)", (wallet, win_rate, total_trades, datetime.now().isoformat()))
             conn.commit()
             conn.close()
-            print(f"💾 Dodano wallet: {wallet[:8]}... ({win_rate:.1f}% | {total_trades} tradów)")
+            print(f"💾 Dodano: {wallet[:8]}... ({win_rate:.1f}%)")
         except Exception as e:
-            print(f"❌ Błąd dodawania walletu: {e}")
+            pass
     
     async def get_tracked_wallets(self):
-        """Pobierz listę śledzonych walletów"""
         try:
             conn = sqlite3.connect("wallets.db")
             cursor = conn.cursor()
@@ -135,43 +107,25 @@ class WalletTracker:
             conn.close()
             return wallets
         except Exception as e:
-            print(f"❌ Błąd pobierania walletów: {e}")
             return []
     
     async def scan_for_traders(self):
-        """Główna funkcja - szuka nowych traderów"""
         new_wallets = []
         tokens = await self.get_top_tokens()
-        
-        print(f"📊 Znaleziono {len(tokens)} top tokenów")
-        
+        print(f"📊 Znaleziono {len(tokens)} tokenów")
         if not tokens:
-            print("❌ Brak tokenów do skanowania")
             return new_wallets
-        
         for token in tokens:
             token_mint = token.get("address")
             token_symbol = token.get("symbol", "UNKNOWN")
             if not token_mint:
                 continue
-            
             traders = await self.get_token_traders(token_mint)
-            print(f"💰 Token {token_symbol}: {len(traders)} traderów")
-            
+            print(f"💰 {token_symbol}: {len(traders)} traderów")
             for trader in traders:
                 win_rate, total_trades = await self.calculate_win_rate(trader)
-                
-                if win_rate is None or total_trades is None:
+                if win_rate is None:
                     continue
-                
-                print(f"  └─ {trader[:8]}... | {total_trades} tradów | {win_rate:.1f}% win rate ✅")
-                
                 await self.add_wallet(trader, win_rate, total_trades)
-                new_wallets.append({
-                    "wallet": trader,
-                    "win_rate": win_rate,
-                    "total_trades": total_trades,
-                    "token": token_symbol
-                })
-        
+                new_wallets.append({"wallet": trader, "win_rate": win_rate, "total_trades": total_trades, "token": token_symbol})
         return new_wallets
