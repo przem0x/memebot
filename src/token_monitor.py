@@ -3,4 +3,10 @@ class TokenMonitor:
         self.api_key = helius_api_key
     
     async def monitor_wallets(self, wallets):
-        return []
+        """Monitoruj transakcje śledzonych walletów"""
+        signals = []
+        
+        # TODO: Jeśli śledzony wallet robi buy/sell
+        # to wysyłaj sygnał
+        
+        return signals
