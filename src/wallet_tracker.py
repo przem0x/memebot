@@ -23,28 +23,26 @@ class WalletTracker:
         conn.close()
     
     async def get_top_tokens(self):
-    """Pobierz top tokeny z ostatnich 24h"""
-    try:
-        async with aiohttp.ClientSession() as session:
-            # Dex Screener API - lepiej dla Solany
-            url = "https://api.dexscreener.com/latest/dex/tokens"
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                data = await resp.json()
-                tokens = data.get("pairs", [])[:20]
-                
-                # Konwertuj na format jak wcześniej
-                formatted = []
-                for token in tokens:
-                    formatted.append({
-                        "address": token.get("baseToken", {}).get("address"),
-                        "symbol": token.get("baseToken", {}).get("symbol", "UNKNOWN")
-                    })
-                
-                print(f"✅ Pobrano {len(formatted)} tokenów z Dex Screener")
-                return formatted
-    except Exception as e:
-        print(f"❌ Błąd pobierania tokenów: {e}")
-        return []
+        """Pobierz top tokeny"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = "https://api.dexscreener.com/latest/dex/tokens"
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    data = await resp.json()
+                    tokens = data.get("pairs", [])[:20]
+                    
+                    formatted = []
+                    for token in tokens:
+                        formatted.append({
+                            "address": token.get("baseToken", {}).get("address"),
+                            "symbol": token.get("baseToken", {}).get("symbol", "UNKNOWN")
+                        })
+                    
+                    print(f"✅ Pobrano {len(formatted)} tokenów z Dex Screener")
+                    return formatted
+        except Exception as e:
+            print(f"❌ Błąd pobierania tokenów: {e}")
+            return []
     
     async def get_token_traders(self, token_mint: str):
         """Pobierz tradery danego tokenu"""
@@ -69,7 +67,6 @@ class WalletTracker:
         """Oblicz win rate i liczbę tradów"""
         try:
             async with aiohttp.ClientSession() as session:
-                # Pobranie transakcji
                 payload = {
                     "jsonrpc": "2.0",
                     "id": 1,
@@ -87,7 +84,6 @@ class WalletTracker:
                     if not signatures:
                         return None, None
                     
-                    # Filtruj ostatni miesiąc
                     one_month_ago = datetime.now() - timedelta(days=30)
                     recent_sigs = []
                     
@@ -98,17 +94,14 @@ class WalletTracker:
                                 recent_sigs.append(sig)
                     
                     total_trades = len(recent_sigs)
-                    
-                    # Prosta heurystyka: transakcje które się powiodły mają status "Ok"
                     successful = sum(1 for sig in recent_sigs if sig.get("err") is None)
                     
-                    # ZMIENIONE FILTRY - łagodniejsze na start
-                    if total_trades < 100:  # było 300
+                    if total_trades < 100:
                         return None, None
                     
                     win_rate = (successful / total_trades * 100) if total_trades > 0 else 0
                     
-                    if win_rate < 40:  # było 50
+                    if win_rate < 40:
                         return None, None
                     
                     return win_rate, total_trades
