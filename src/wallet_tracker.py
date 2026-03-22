@@ -23,18 +23,28 @@ class WalletTracker:
         conn.close()
     
     async def get_top_tokens(self):
-        """Pobierz top tokeny z ostatnich 24h"""
-        try:
-            async with aiohttp.ClientSession() as session:
-                # Jupiter API - top tokeny
-                url = "https://api.jup.ag/tokens"
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                    tokens = await resp.json()
-                    print(f"✅ Pobrano {len(tokens)} tokenów z Jupiter")
-                    return tokens[:20]  # Top 20 tokenów
-        except Exception as e:
-            print(f"❌ Błąd pobierania tokenów: {e}")
-            return []
+    """Pobierz top tokeny z ostatnich 24h"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            # Dex Screener API - lepiej dla Solany
+            url = "https://api.dexscreener.com/latest/dex/tokens"
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                data = await resp.json()
+                tokens = data.get("pairs", [])[:20]
+                
+                # Konwertuj na format jak wcześniej
+                formatted = []
+                for token in tokens:
+                    formatted.append({
+                        "address": token.get("baseToken", {}).get("address"),
+                        "symbol": token.get("baseToken", {}).get("symbol", "UNKNOWN")
+                    })
+                
+                print(f"✅ Pobrano {len(formatted)} tokenów z Dex Screener")
+                return formatted
+    except Exception as e:
+        print(f"❌ Błąd pobierania tokenów: {e}")
+        return []
     
     async def get_token_traders(self, token_mint: str):
         """Pobierz tradery danego tokenu"""
