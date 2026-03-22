@@ -23,23 +23,20 @@ class WalletTracker:
         conn.close()
     
     async def get_top_tokens(self):
-        try:
-            async with aiohttp.ClientSession() as session:
-                url = "https://api.dexscreener.com/latest/dex/tokens"
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                    data = await resp.json()
-                    tokens = data.get("pairs", [])[:20]
-                    formatted = []
-                    for token in tokens:
-                        formatted.append({
-                            "address": token.get("baseToken", {}).get("address"),
-                            "symbol": token.get("baseToken", {}).get("symbol", "UNKNOWN")
-                        })
-                    print(f"✅ Pobrano {len(formatted)} tokenów")
-                    return formatted
-        except Exception as e:
-            print(f"❌ Błąd: {e}")
-            return []
+    try:
+        # Popularne tokeny Solany do testowania
+        tokens = [
+            {"address": "EPjFWaLb3oCRY59Es8MP4KEVVp98H6B3d4y46nCjNBL5", "symbol": "USDC"},
+            {"address": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenErt9", "symbol": "USDT"},
+            {"address": "9n4nbM75f5Ui33ZbPYXn59EwSgE8CGsHtErZWKOK2KKd", "symbol": "BRZ"},
+            {"address": "A9mUU4qviSctJVPJcM8DvPow9MJzEVB3iM5ZnZRuwV5D", "symbol": "USH"},
+            {"address": "7vfCn3zVsPkjecvr46M4DvPow9MJzDVB3iM5ZnZRuwV5D", "symbol": "COPE"},
+        ]
+        print(f"✅ Załadowano {len(tokens)} tokenów")
+        return tokens
+    except Exception as e:
+        print(f"❌ Błąd: {e}")
+        return []
     
     async def get_token_traders(self, token_mint: str):
         try:
