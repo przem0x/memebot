@@ -16,32 +16,22 @@ class WalletTracker:
         conn.close()
     
     async def get_top_tokens(self):
-        try:
-            tokens = [
-                {"address": "EPjFWaLb3oCRY59Es8MP4KEVVp98H6B3d4y46nCjNBL5", "symbol": "USDC"},
-                {"address": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenErt9", "symbol": "USDT"},
-                {"address": "9n4nbM75f5Ui33ZbPYXn59EwSgE8CGsHtErZWKOK2KKd", "symbol": "BRZ"},
-            ]
-            print(f"✅ Załadowano {len(tokens)} tokenów")
-            return tokens
-        except Exception as e:
-            print(f"❌ Błąd: {e}")
-            return []
+        tokens = [
+            {"address": "EPjFWaLb3oCRY59Es8MP4KEVVp98H6B3d4y46nCjNBL5", "symbol": "USDC"},
+            {"address": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenErt9", "symbol": "USDT"},
+            {"address": "9n4nbM75f5Ui33ZbPYXn59EwSgE8CGsHtErZWKOK2KKd", "symbol": "BRZ"},
+        ]
+        print(f"✅ Załadowano {len(tokens)} tokenów")
+        return tokens
     
     async def get_token_traders(self, token_mint: str):
-    try:
-        # Testowe wallety Solany
         wallets = [
             "11111111111111111111111111111112",
             "TokenkegQfeZyiNwAJsyFbPUwJ7SNVeneRws6SMG5tf",
             "ATokenGPvbdGVqstVQmcLsNZAqeEbtQaMy63h58CP4xWn",
             "metaqbxxUerdq28cj1RbAqoMyo5KLLgQFXjqBQaqad",
-            "11111111111111111111111111111111",
         ]
-        print(f"   └─ Pobrałem {len(wallets)} walletów")
         return wallets
-    except Exception as e:
-        return []
     
     async def calculate_win_rate(self, wallet: str):
         try:
@@ -52,17 +42,12 @@ class WalletTracker:
                     if "error" in data:
                         return None, None
                     signatures = data.get("result", [])
-                    if not signatures:
+                    if not signatures or len(signatures) < 100:
                         return None, None
-                    recent_sigs = [s for s in signatures if s.get("blockTime")]
-                    if len(recent_sigs) < 100:
-                        return None, None
-                    successful = sum(1 for s in recent_sigs if s.get("err") is None)
-                    win_rate = (successful / len(recent_sigs) * 100) if recent_sigs else 0
-                    if win_rate < 40:
-                        return None, None
-                    return win_rate, len(recent_sigs)
-        except Exception as e:
+                    successful = sum(1 for s in signatures if s.get("err") is None)
+                    win_rate = (successful / len(signatures) * 100)
+                    return win_rate, len(signatures)
+        except:
             return None, None
     
     async def add_wallet(self, wallet: str, win_rate: float, total_trades: int):
@@ -73,7 +58,7 @@ class WalletTracker:
             conn.commit()
             conn.close()
             print(f"💾 Dodano: {wallet[:8]}... ({win_rate:.1f}%)")
-        except Exception as e:
+        except:
             pass
     
     async def get_tracked_wallets(self):
@@ -90,15 +75,11 @@ class WalletTracker:
     async def scan_for_traders(self):
         new_wallets = []
         tokens = await self.get_top_tokens()
-        if not tokens:
-            return new_wallets
         for token in tokens:
             token_mint = token.get("address")
             token_symbol = token.get("symbol", "UNKNOWN")
-            if not token_mint:
-                continue
             traders = await self.get_token_traders(token_mint)
-            print(f"💰 {token_symbol}: {len(traders)} traderów")
+            print(f"💰 {token_symbol}: {len(traders)} walletów")
             for trader in traders:
                 win_rate, total_trades = await self.calculate_win_rate(trader)
                 if win_rate is None:
